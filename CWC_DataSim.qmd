@@ -5,6 +5,7 @@ format:
   html:
     toc: true
     page-layout: full
+    df-print: kable
 editor: visual
 ---
 
@@ -96,9 +97,9 @@ df.2 <- df.1 %>%
 Create an indicator variable, A, for the time varying treatment. Note that A will be equal to Aever except in the time periods before initiation (when Astart\<time_period) and after switching (when Aswitch\>= time_period)
 
 ```{r}
-# Create A - time varying indicator of reatment
+# Create A - time varying indicator of treatment
 df.3 <- df.2 %>%
-  mutate(A = ifelse((time_period > Astart | is.na(Astart)) & time_period< Aswitch, Agrace, 1-Agrace)) %>%
+  mutate(A = ifelse((time_period >= Astart | is.na(Astart)) & time_period< Aswitch, Agrace, 1-Agrace)) %>%
   select(ID, time_period, Agrace, A, W, X)
 
 ```
@@ -145,4 +146,12 @@ df <- df.6 %>%
  
 # Export to .csv for sharing
 write_csv(df, file="CWC_example.csv")
+```
+
+## Summarize data
+
+```{r}
+df %>% filter(time_period==1) %>% summarize(mean(A, na.rm=T))
+
+
 ```
