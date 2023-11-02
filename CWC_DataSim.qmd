@@ -150,7 +150,7 @@ df.6 <- df.5 %>%
   
   #fill in missing times with J+1 for relative time statments below
   mutate(event_time = ifelse(is.na(event_time), J+1, event_time),
-         cens_time = ifelse(is.na(cens_time), J+1, event_time),
+         cens_time = ifelse(is.na(cens_time), J+1, cens_time),
     
          D = ifelse(is.na(event_time), 0, 
                     ifelse(event_time>time_period, 0,
@@ -158,7 +158,7 @@ df.6 <- df.5 %>%
          C = ifelse(is.na(cens_time), 0,
                     ifelse(cens_time>time_period, 0,
                            ifelse(cens_time==time_period, 1, NA))),
-         end_time = pmin(event_time, cens_time, J),
+         end_time = pmin(event_time, cens_time, J+1),
          
          # Y is the outcome when there is censoring, D is the outcome without censoring
          # note that when censoring and event occur at teh same time, censoring "wins"
@@ -185,18 +185,17 @@ df %>% filter(time_period==1) %>% group_by(Agrace) %>% summarize(mean(X), mean(W
 
 ```
 
-Distribution of follow up time
+Distribution of follow up time without any censoring (event_time) and with censoring (end_time)
 
 ```{r}
-df.max <- df %>% group_by(ID) %>% summarize(time_period=max(time_period), Y=max(Y), Agrace=max(Agrace)) 
-
-table(df.max$time_period)
+df.6 %>% filter(time_period==1) %>% group_by(event_time) %>% summarize(n())
+df.6 %>% filter(time_period==1) %>% group_by(end_time) %>% summarize(n())
 ```
 
-Outcome by exposure (Agrace) status
+Outcome by exposure (Agrace) status (i.e., "new user" vs. "non-user" comparison)
 
 ```{r}
-df.max %>% group_by(Agrace) %>% summarize(mean(Y))
+df %>% group_by(ID) %>% summarize(Y=max(Y, na.rm=T), Agrace=max(Agrace)) %>% group_by(Agrace) %>% summarize(mean(Y))
 ```
 
 Potential for immortal time bias: How many outcomes occur in the "exposed group" (Agrace) before they are actually exposed (i.e., when Agrace=1 and A=0)?
