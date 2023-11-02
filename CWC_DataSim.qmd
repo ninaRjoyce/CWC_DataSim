@@ -115,15 +115,19 @@ A <- df.3$A
 time_period <- df.3$time_period 
 
 df.4 <- df.3 %>% 
-  mutate(hazard_prob =  plogis(3 - (0.5 * A) + (0.03 * time_period) + (0.3 * X) - (0.4 * W)))
+  mutate(hazard_prob =  plogis(3 - (2 * A) + (0.03 * time_period) + (0.3 * X) - (0.4 * W)),
+         uncens_prob = plogis(4 + (0.5 * A) + (0.008 * time_period) - (2 * X)))
 
 # Survival indicator for each person-period that is a function of X, W and A (above)
 surv <- rbinom(N*J, size=1, prob=df.4$hazard_prob)
 
-df.5 <- cbind(df.4, surv) 
+# Censoring indicator for each person period taht is a function of only A and X 
+uncens <- rbinom(N*J, size=1, prob=df.4$uncens_prob)
 
-# By group, arrange so that the first time survival=0 is the first observation.
-# select that time period and rename it "event time" (since it is the first time surv!=1)
+df.5 <- cbind(df.4, surv, uncens) 
+
+# By group, arrange so that the first time survival or censoring equal zero is the first observation.
+# select that time period and rename it
 surv.time <- df.5 %>%
   group_by(ID) %>%
   arrange(surv, time_period, .by_group=TRUE) %>%
@@ -131,18 +135,40 @@ surv.time <- df.5 %>%
   select(ID, time_period) %>%
   rename(event_time=time_period)
 
+uncens.time <- df.5 %>%
+  group_by(ID) %>%
+  arrange(uncens, time_period, .by_group=TRUE) %>%
+  filter(row_number() ==1 & uncens==0) %>%
+  select(ID, time_period) %>%
+  rename(cens_time=time_period)
+
 # Merge back on to dataset and drop (or set to NA) all observations that occur after the outcome
 # and replace all outcomes for individuals who never have the event (i.e., surv=1 for all time points) with zero.
 df.6 <- df.5 %>%
   left_join(surv.time, by="ID") %>%
-  mutate(Y = ifelse(is.na(event_time), 0, 
+  left_join(uncens.time, by="ID") %>%
+  
+  #fill in missing times with J+1 for relative time statments below
+  mutate(event_time = ifelse(is.na(event_time), J+1, event_time),
+         cens_time = ifelse(is.na(cens_time), J+1, event_time),
+    
+         D = ifelse(is.na(event_time), 0, 
                     ifelse(event_time>time_period, 0,
-                           ifelse(event_time==time_period, 1, NA))))
+                           ifelse(event_time==time_period, 1, NA))),
+         C = ifelse(is.na(cens_time), 0,
+                    ifelse(cens_time>time_period, 0,
+                           ifelse(cens_time==time_period, 1, NA))),
+         end_time = pmin(event_time, cens_time, J),
+         
+         # Y is the outcome when there is censoring, D is the outcome without censoring
+         # note that when censoring and event occur at teh same time, censoring "wins"
+         Y = ifelse( end_time < time_period, NA,
+                     ifelse(cens_time<=event_time, 0, D)))
+           
 
 # Select relevant variables for clean dataset
 df <- df.6 %>%
-  select(-hazard_prob, -event_time, -surv) %>%
-  filter(!is.na(Y))
+  select(-hazard_prob, -uncens_prob, -event_time, -cens_time, -end_time, -surv, -uncens ) 
  
 # Export to .csv for sharing
 write_csv(df, file="CWC_example.csv")
@@ -150,8 +176,35 @@ write_csv(df, file="CWC_example.csv")
 
 ## Summarize data
 
-```{r}
-df %>% filter(time_period==1) %>% summarize(mean(A, na.rm=T))
+Summary of exposure and confounders
 
+```{r}
+df %>% filter(time_period==1) %>% summarize(mean(Agrace), mean(X), mean(W))
+
+df %>% filter(time_period==1) %>% group_by(Agrace) %>% summarize(mean(X), mean(W))
 
 ```
+
+Distribution of follow up time
+
+```{r}
+df.max <- df %>% group_by(ID) %>% summarize(time_period=max(time_period), Y=max(Y), Agrace=max(Agrace)) 
+
+table(df.max$time_period)
+```
+
+Outcome by exposure (Agrace) status
+
+```{r}
+df.max %>% group_by(Agrace) %>% summarize(mean(Y))
+```
+
+Potential for immortal time bias: How many outcomes occur in the "exposed group" (Agrace) before they are actually exposed (i.e., when Agrace=1 and A=0)?
+
+```{r}
+df %>% filter(Agrace==1 & A==0 & Y==1) %>% summarize(sum(Y))
+```
+
+## Naive analysis
+
+We'll start by doing the naive analysis, where we first just compare the crude risks, and then
