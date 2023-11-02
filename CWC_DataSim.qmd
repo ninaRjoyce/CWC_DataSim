@@ -1,11 +1,148 @@
 ---
-title: "CWC_DataSim"
+title: "CWC data simulation"
+author: "Nina Joyce"
+format: 
+  html:
+    toc: true
+    page-layout: full
+editor: visual
 ---
 
-## Quarto
+## The simulation
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+The goal is to simulate data that can be used to examine the Clone-Weight-Censor (CWC) method. Thus, we need a data set with the following properties.
+
+-   **Longitudinal:** A panel data set with enough time periods to allow for some complexity in the grace period and censoring patterns.
+
+-   **A treatment strategy that is:**
+
+    -   **Sustained -** A treatment that can hypothetically change over time (e.g., not a surgery)
+
+    -   **Time varying -** A treatment that can turn on or off. To keep it simple we will have the treatment turn on or off one time at most.
+
+    -   **Subject to possible immortal time bias:** The Cain, et al. paper uses a dynamic treatment regime. We will simulate something much simpler - a treatment strategy with a grace period.
+
+-   **Non-random censoring:** We need censoring to occur both in and outside the grace period.
+
+### Simulate longitudinal data
+
+We'll start with 1,000 individuals, 10 time periods, and a grace period of 4 time periods. There will be two baseline covariates, X and W.
 
 ```{r}
-1 + 1
+#| output: false
+rm(list=ls())
+library(tidyverse)
+
+set.seed(04192020)
+
+# Number of individuals
+N <- 1000
+
+# Number of time periods
+J <- 10
+
+# Grace period
+G <- 4
+
+# ID numbers
+ID <- seq(1:N)
+
+# Simulate baseline confounders
+X <- rbinom(N, 1, 0.3)
+W <- rbinom(N, 1, 0.7)
+```
+
+### Simulate exposure
+
+Next, we will simulate the exposure. We will define treatment strategy as "initiate treatment within first four time periods and stay on treatment through time period 10", and "do not initiate treatment within the first four time periods and remain off treatment through time period 10."
+
+We will assume that everyone "randomized" to the treatment strategy initiates within the first four time periods and thus any non-compliance with treatment strategy is due to initiation or discontinuation after the grace period.
+
+We start by modeling the probability of initaiting the treatment in the grace period and then assign probabilities of switching in each time period after the grace period. Note that this variable, Agrace, is like our "new user" "never user" variable, because it indicates who initiated within the grace period.
+
+```{r}
+
+# Simulate treatment initiation in the grace period (yes/no)
+Agrace <- rbinom(N, 1, plogis(-1 + 3*X - 2*W))
+
+# For all individuals who initiate, randomly assign treatment to start within grace period
+Astart <- ifelse(Agrace==1, sample(1:4, N, replace=T), NA)
+
+# Create indicator of time period in which exposure changes for all A (must occur after the grace period)
+Aswitch <- sample(5:11, N, prob = c(0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.78), replace=T)
+```
+
+### Create "long" data set
+
+Next, put all the variables together and expand the data set to a long data set, creating a time-period indicator
+
+```{r}
+
+#note: usually would do all these in one step, but keeping them separate (i.e., df.1-6) for illustration purposes
+# Create a dataframe 
+df.1 <- data.frame(ID, Agrace, Astart, Aswitch, X, W) 
+
+
+# Expand to long
+df.2 <- df.1 %>%
+  group_by(ID) %>%
+  slice(rep(1:n(), each = J)) %>%
+  mutate(time_period = 1:n())%>%
+  ungroup()
+```
+
+### Create time-varying exposure
+
+Create an indicator variable, A, for the time varying treatment. Note that A will be equal to Aever except in the time periods before initiation (when Astart\<time_period) and after switching (when Aswitch\>= time_period)
+
+```{r}
+# Create A - time varying indicator of reatment
+df.3 <- df.2 %>%
+  mutate(A = ifelse((time_period > Astart | is.na(Astart)) & time_period< Aswitch, Agrace, 1-Agrace)) %>%
+  select(ID, time_period, Agrace, A, W, X)
+
+```
+
+### Simulate outcomes
+
+Simulate a probability distribution for the outcome that is a function of time (and the treatment and confounders). Note that the probability of the outcome is **not** contingent on not yet having experienced the outcome, though we drop all observations (or set to NA) after the first occurrence of the outcome.
+
+```{r}
+
+# Create hazard probabilities that increase with time *linearly*
+A <- df.3$A
+time_period <- df.3$time_period 
+
+df.4 <- df.3 %>% 
+  mutate(hazard_prob =  plogis(3 - (0.5 * A) + (0.03 * time_period) + (0.3 * X) - (0.4 * W)))
+
+# Survival indicator for each person-period that is a function of X, W and A (above)
+surv <- rbinom(N*J, size=1, prob=df.4$hazard_prob)
+
+df.5 <- cbind(df.4, surv) 
+
+# By group, arrange so that the first time survival=0 is the first observation.
+# select that time period and rename it "event time" (since it is the first time surv!=1)
+surv.time <- df.5 %>%
+  group_by(ID) %>%
+  arrange(surv, time_period, .by_group=TRUE) %>%
+  filter(row_number() ==1 & surv==0) %>%
+  select(ID, time_period) %>%
+  rename(event_time=time_period)
+
+# Merge back on to dataset and drop (or set to NA) all observations that occur after the outcome
+# and replace all outcomes for individuals who never have the event (i.e., surv=1 for all time points) with zero.
+df.6 <- df.5 %>%
+  left_join(surv.time, by="ID") %>%
+  mutate(Y = ifelse(is.na(event_time), 0, 
+                    ifelse(event_time>time_period, 0,
+                           ifelse(event_time==time_period, 1, NA))))
+
+# Select relevant variables for clean dataset
+df <- df.6 %>%
+  select(-hazard_prob, -event_time, -surv) %>%
+  filter(!is.na(Y))
+ 
+# Export to .csv for sharing
+write_csv(df, file="CWC_example.csv")
 ```
