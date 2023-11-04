@@ -1,0 +1,42 @@
+---
+title: "CWC - Analysis"
+author: "Nina Joyce"
+format: 
+  html:
+    toc: true
+    page-layout: full
+    df-print: kable
+editor: visual
+---
+
+## 
+
+## Target estimands
+
+Our target estimand is the causal risk difference. We will also create cumulative incidence curves.
+
+## Naive analysis
+
+Does not take into account the grace period. The treatment is Agrace, meaning started at some point in the grace period.
+
+```{r}
+#| output: false
+
+# Set up the seed 
+rm(list=ls())
+set.seed (04192020)
+library(tidyverse)
+library(broom)
+
+df <- read_csv("CWC_example.csv")
+```
+
+## 
+
+Intention to treat (ITT)
+
+```{r}
+
+m1 <- glm(D ~ Agrace + W + X + time_period, data=df, family="binomial")
+tidy(m1)
+```
