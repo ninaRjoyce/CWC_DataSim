@@ -88,8 +88,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#create-time-varying-exposure" id="toc-create-time-varying-exposure" class="nav-link" data-scroll-target="#create-time-varying-exposure">Create time-varying exposure</a></li>
   <li><a href="#simulate-outcomes" id="toc-simulate-outcomes" class="nav-link" data-scroll-target="#simulate-outcomes">Simulate outcomes</a></li>
   </ul></li>
-  <li><a href="#summarize-data" id="toc-summarize-data" class="nav-link" data-scroll-target="#summarize-data">Summarize data</a></li>
-  <li><a href="#section" id="toc-section" class="nav-link" data-scroll-target="#section"></a></li>
   </ul>
 </nav>
 </div>
@@ -122,12 +120,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="the-simulation">The simulation</h2>
 <p>The goal is to simulate data that can be used to examine the Clone-Weight-Censor (CWC) method. Thus, we need a data set with the following properties.</p>
 <ul>
-<li><p><strong>Longitudinal:</strong> A panel data set with enough time periods to allow for some complexity in the grace period and censoring patterns.</p></li>
+<li><p><strong>Longitudinal:</strong> A panel data set with enough time periods to allow for some complexity in the grace period and post-grace period censoring.</p></li>
 <li><p><strong>A treatment strategy that is:</strong></p>
 <ul>
-<li><p><strong>Sustained -</strong> A treatment that can hypothetically change over time (e.g., not a surgery)</p></li>
+<li><p><strong>Sustained -</strong> A treatment that can hypothetically change over time (e.g., not a surgery). Note that this is only because we want to incorporate post-grace period censoring and for the per-protocol effect to differ from the intention-to-treat (their observational analogues).</p></li>
 <li><p><strong>Time varying -</strong> A treatment that can turn on or off. To keep it simple we will have the treatment turn on or off one time at most.</p></li>
-<li><p><strong>Subject to possible immortal time bias:</strong> The Cain, et al.&nbsp;paper uses a dynamic treatment regime. We will simulate something much simpler - a treatment strategy with a grace period.</p></li>
+<li><p><strong>Subject to possible immortal time bias:</strong> The Cain, et al.&nbsp;paper uses a dynamic treatment regime. We will simulate something much simpler - a treatment strategy with a specified grace period.</p></li>
 </ul></li>
 <li><p><strong>Non-random censoring:</strong> We need censoring to occur both in and outside the grace period.</p></li>
 </ul>
@@ -141,7 +139,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">04192020</span>)</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of individuals</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>N <span class="ot">&lt;-</span> <span class="dv">1000</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>N <span class="ot">&lt;-</span> <span class="dv">10000</span></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of time periods</span></span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>J <span class="ot">&lt;-</span> <span class="dv">10</span></span>
@@ -160,13 +158,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="simulate-exposure" class="level3">
 <h3 class="anchored" data-anchor-id="simulate-exposure">Simulate exposure</h3>
 <p>Next, we will simulate the exposure. We will define treatment strategy as “initiate treatment within first four time periods and stay on treatment through time period 10”, and “do not initiate treatment within the first four time periods and remain off treatment through time period 10.”</p>
-<p>We will assume that everyone “randomized” to the treatment strategy initiates within the first four time periods and thus any non-compliance with treatment strategy is due to initiation or discontinuation after the grace period.</p>
+<p>We will assume that everyone assigned to the treatment strategy initiates within the first four time periods and thus any non-compliance with treatment strategy is due to initiation or discontinuation after the grace period.</p>
 <p>We start by modeling the probability of initaiting the treatment in the grace period and then assign probabilities of switching in each time period after the grace period. Note that this variable, Agrace, is like our “new user” “never user” variable, because it indicates who initiated within the grace period.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate treatment initiation in the grace period (yes/no)</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>Agrace <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(N, <span class="dv">1</span>, <span class="fu">plogis</span>(<span class="sc">-</span><span class="dv">1</span> <span class="sc">+</span> <span class="dv">3</span><span class="sc">*</span>X <span class="sc">-</span> <span class="dv">2</span><span class="sc">*</span>W))</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># For all individuals who initiate, randomly assign treatment to start within grace period</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># For all individuals who initiate, assign uniform distribution for treatment start time within </span></span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>Astart <span class="ot">&lt;-</span> <span class="fu">ifelse</span>(Agrace<span class="sc">==</span><span class="dv">1</span>, <span class="fu">sample</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>, N, <span class="at">replace=</span>T), <span class="cn">NA</span>)</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Create indicator of time period in which exposure changes for all A (must occur after the grace period)</span></span>
@@ -192,7 +190,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="create-time-varying-exposure" class="level3">
 <h3 class="anchored" data-anchor-id="create-time-varying-exposure">Create time-varying exposure</h3>
-<p>Create an indicator variable, A, for the time varying treatment. Note that A will be equal to Aever except in the time periods before initiation (when Astart&lt;time_period) and after switching (when Aswitch&gt;= time_period)</p>
+<p>Create an indicator variable, A, for the time varying treatment. Note that A will be equal to Agrace except in the time periods before initiation (when Astart&lt;time_period) and after switching (when Aswitch&gt;= time_period)</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create A - time varying indicator of treatment</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>df<span class="fl">.3</span> <span class="ot">&lt;-</span> df<span class="fl">.2</span> <span class="sc">%&gt;%</span></span>
@@ -202,33 +200,34 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="simulate-outcomes" class="level3">
 <h3 class="anchored" data-anchor-id="simulate-outcomes">Simulate outcomes</h3>
-<p>Simulate a probability distribution for the outcome that is a function of time (and the treatment and confounders). Note that the probability of the outcome is <strong>not</strong> contingent on not yet having experienced the outcome, though we drop all observations (or set to NA) after the first occurrence of the outcome.</p>
+<p>Simulate the hazard of the outcome that is a function of time (and the treatment and confounders).</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">#note, originally was modeling survival and uncensoring, so just took 1-prob. will clean up later</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>df<span class="fl">.4</span> <span class="ot">&lt;-</span> df<span class="fl">.3</span> <span class="sc">%&gt;%</span> </span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">hazard_prob =</span>  <span class="dv">1</span><span class="sc">-</span><span class="fu">plogis</span>(<span class="dv">3</span> <span class="sc">-</span> (<span class="dv">2</span> <span class="sc">*</span> A) <span class="sc">+</span> (<span class="fl">0.03</span> <span class="sc">*</span> time_period) <span class="sc">+</span> (<span class="fl">0.3</span> <span class="sc">*</span> X) <span class="sc">-</span> (<span class="fl">0.4</span> <span class="sc">*</span> W)),</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>         <span class="at">cens_prob =</span> <span class="dv">1</span> <span class="sc">-</span> <span class="fu">plogis</span>(<span class="dv">4</span> <span class="sc">+</span> (<span class="fl">0.5</span> <span class="sc">*</span> A) <span class="sc">+</span> (<span class="fl">0.008</span> <span class="sc">*</span> time_period) <span class="sc">-</span> (<span class="dv">2</span> <span class="sc">*</span> X)))</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Survival indicator. Once outcome occurs, all future outcomes are 9 (&lt;- convert to NA in later step b/c otherwise variable is logical, not numeric)</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(df<span class="fl">.4</span>)) {</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>   </span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>   <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>time_period[i]<span class="sc">==</span><span class="dv">1</span>) {</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>     df<span class="fl">.4</span><span class="sc">$</span>event[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">1</span>, df<span class="fl">.4</span><span class="sc">$</span>hazard_prob[i])</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>   } <span class="cf">else</span> { <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>time_period[i]<span class="sc">&gt;</span><span class="dv">1</span>) {</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>         <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>event[i<span class="dv">-1</span>] <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>           df<span class="fl">.4</span><span class="sc">$</span>event [i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">1</span>, df<span class="fl">.4</span><span class="sc">$</span>hazard_prob[i])</span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>         } <span class="cf">else</span> <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>event[i<span class="dv">-1</span>] <span class="sc">==</span> <span class="dv">1</span>) {</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>           df<span class="fl">.4</span><span class="sc">$</span>event[i] <span class="ot">&lt;-</span> <span class="dv">9</span></span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>         } <span class="cf">else</span> <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>event[i<span class="dv">-1</span>]<span class="sc">==</span><span class="dv">9</span>) {</span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>           df<span class="fl">.4</span><span class="sc">$</span>event[i] <span class="ot">&lt;-</span> <span class="dv">9</span></span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>         }</span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>       }</span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>} </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Hazard of event. Once outcome occurs, all future outcomes are 9 (&lt;- convert to NA in later step b/c otherwise variable is logical, not numeric)</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(df<span class="fl">.4</span>)) {</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>   </span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>   <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>time_period[i]<span class="sc">==</span><span class="dv">1</span>) {</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>     df<span class="fl">.4</span><span class="sc">$</span>event[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">1</span>, df<span class="fl">.4</span><span class="sc">$</span>hazard_prob[i])</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>   } <span class="cf">else</span> { <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>time_period[i]<span class="sc">&gt;</span><span class="dv">1</span>) {</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>         <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>event[i<span class="dv">-1</span>] <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>           df<span class="fl">.4</span><span class="sc">$</span>event [i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">1</span>, df<span class="fl">.4</span><span class="sc">$</span>hazard_prob[i])</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>         } <span class="cf">else</span> <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>event[i<span class="dv">-1</span>] <span class="sc">==</span> <span class="dv">1</span>) {</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>           df<span class="fl">.4</span><span class="sc">$</span>event[i] <span class="ot">&lt;-</span> <span class="dv">9</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>         } <span class="cf">else</span> <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>event[i<span class="dv">-1</span>]<span class="sc">==</span><span class="dv">9</span>) {</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>           df<span class="fl">.4</span><span class="sc">$</span>event[i] <span class="ot">&lt;-</span> <span class="dv">9</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>         }</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>       }</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>} </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning: Unknown or uninitialised column: `event`.</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Censoring indicator. Once censored, all future values are NA</span></span>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Hazard of censoring</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(df<span class="fl">.4</span>)) {</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>   <span class="cf">if</span> (df<span class="fl">.4</span><span class="sc">$</span>time_period[i]<span class="sc">==</span><span class="dv">1</span>) {</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>     df<span class="fl">.4</span><span class="sc">$</span>censor[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">1</span>, df<span class="fl">.4</span><span class="sc">$</span>cens_prob[i])</span>
@@ -260,17 +259,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(censor<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span></span>
 <span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(ID, <span class="at">cens_time=</span>time_period)</span>
 <span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Merge back on to dataset and create outcome that is subject to censoring (note that when the censoring and event times are the same, censoring "wins")</span></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>df<span class="fl">.6</span> <span class="ot">&lt;-</span> df<span class="fl">.5</span> <span class="sc">%&gt;%</span></span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(event.time, <span class="at">by=</span><span class="st">"ID"</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(cens.time, <span class="at">by=</span><span class="st">"ID"</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">event_time =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(event_time), <span class="dv">11</span>, event_time),</span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>         <span class="at">cens_time =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(cens_time), <span class="dv">11</span>, cens_time),</span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>         <span class="at">end_time =</span> <span class="fu">pmin</span>(event_time, cens_time, J<span class="sc">+</span><span class="dv">1</span>),</span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>         <span class="at">Y =</span> <span class="fu">ifelse</span> (end_time<span class="sc">==</span>time_period <span class="sc">&amp;</span> censor<span class="sc">!=</span><span class="dv">1</span>, <span class="dv">1</span>,</span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">ifelse</span>( end_time<span class="sc">&gt;</span>time_period, <span class="dv">0</span>, <span class="cn">NA</span>)))</span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a> </span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Merge back on to dataset and create outcome variable (Y) that is subject to censoring </span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="co"># (note that when the censoring and event times are the same, censoring "wins")</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>df<span class="fl">.6</span> <span class="ot">&lt;-</span> df<span class="fl">.5</span> <span class="sc">%&gt;%</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(event.time, <span class="at">by=</span><span class="st">"ID"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(cens.time, <span class="at">by=</span><span class="st">"ID"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">event_time =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(event_time), <span class="dv">11</span>, event_time),</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>         <span class="at">cens_time =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(cens_time), <span class="dv">11</span>, cens_time),</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>         <span class="at">end_time =</span> <span class="fu">pmin</span>(event_time, cens_time, J<span class="sc">+</span><span class="dv">1</span>),</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>         <span class="at">Y =</span> <span class="fu">ifelse</span> (end_time<span class="sc">==</span>time_period <span class="sc">&amp;</span> censor<span class="sc">!=</span><span class="dv">1</span>, <span class="dv">1</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">ifelse</span>( end_time<span class="sc">&gt;</span>time_period, <span class="dv">0</span>, <span class="cn">NA</span>)))</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Select relevant variables for clean dataset</span></span>
 <span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df<span class="fl">.6</span> <span class="sc">%&gt;%</span></span>
 <span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(ID, time_period, Agrace, A, X, W, event, censor, Y)</span>
@@ -279,238 +278,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a><span class="fu">write_csv</span>(df, <span class="at">file=</span><span class="st">"CWC_example.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-</section>
-<section id="summarize-data" class="level2">
-<h2 class="anchored" data-anchor-id="summarize-data">Summarize data</h2>
-<p>Summary of exposure and confounders</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>df <span class="sc">%&gt;%</span> <span class="fu">filter</span>(time_period<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span> <span class="fu">summarize</span>(<span class="fu">mean</span>(Agrace), <span class="fu">mean</span>(X), <span class="fu">mean</span>(W))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output-display">
-<div class="kable-table">
-<table class="table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th style="text-align: right;">mean(Agrace)</th>
-<th style="text-align: right;">mean(X)</th>
-<th style="text-align: right;">mean(W)</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: right;">0.262</td>
-<td style="text-align: right;">0.272</td>
-<td style="text-align: right;">0.697</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>df <span class="sc">%&gt;%</span> <span class="fu">filter</span>(time_period<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(Agrace) <span class="sc">%&gt;%</span> <span class="fu">summarize</span>(<span class="fu">mean</span>(X), <span class="fu">mean</span>(W))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output-display">
-<div class="kable-table">
-<table class="table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th style="text-align: right;">Agrace</th>
-<th style="text-align: right;">mean(X)</th>
-<th style="text-align: right;">mean(W)</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: right;">0</td>
-<td style="text-align: right;">0.1165312</td>
-<td style="text-align: right;">0.7750678</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">0.7099237</td>
-<td style="text-align: right;">0.4770992</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<p>Distribution of follow up time without any censoring (event_time) and with censoring (end_time)</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>df<span class="fl">.6</span> <span class="sc">%&gt;%</span> <span class="fu">filter</span>(time_period<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(event_time) <span class="sc">%&gt;%</span> <span class="fu">summarize</span>(<span class="fu">n</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output-display">
-<div class="kable-table">
-<table class="table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th style="text-align: right;">event_time</th>
-<th style="text-align: right;">n()</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">53</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">2</td>
-<td style="text-align: right;">71</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">3</td>
-<td style="text-align: right;">88</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">4</td>
-<td style="text-align: right;">68</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">5</td>
-<td style="text-align: right;">69</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">6</td>
-<td style="text-align: right;">52</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">7</td>
-<td style="text-align: right;">36</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">8</td>
-<td style="text-align: right;">39</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">9</td>
-<td style="text-align: right;">44</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">10</td>
-<td style="text-align: right;">40</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">11</td>
-<td style="text-align: right;">440</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>df<span class="fl">.6</span> <span class="sc">%&gt;%</span> <span class="fu">filter</span>(time_period<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(end_time) <span class="sc">%&gt;%</span> <span class="fu">summarize</span>(<span class="fu">n</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output-display">
-<div class="kable-table">
-<table class="table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th style="text-align: right;">end_time</th>
-<th style="text-align: right;">n()</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">97</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">2</td>
-<td style="text-align: right;">94</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">3</td>
-<td style="text-align: right;">100</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">4</td>
-<td style="text-align: right;">77</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">5</td>
-<td style="text-align: right;">72</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">6</td>
-<td style="text-align: right;">59</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">7</td>
-<td style="text-align: right;">37</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">8</td>
-<td style="text-align: right;">36</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">9</td>
-<td style="text-align: right;">43</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">10</td>
-<td style="text-align: right;">40</td>
-</tr>
-<tr class="odd">
-<td style="text-align: right;">11</td>
-<td style="text-align: right;">345</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<p>Outcome by exposure (Agrace) status (i.e., “new user” vs.&nbsp;“non-user” comparison)</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>df <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(ID) <span class="sc">%&gt;%</span> <span class="fu">summarize</span>(<span class="at">Y=</span><span class="fu">max</span>(Y, <span class="at">na.rm=</span>T), <span class="at">Agrace=</span><span class="fu">max</span>(Agrace)) <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(Agrace) <span class="sc">%&gt;%</span> <span class="fu">summarize</span>(<span class="fu">mean</span>(Y))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stderr">
-<pre><code>Warning: There were 45 warnings in `summarize()`.
-The first warning was:
-ℹ In argument: `Y = max(Y, na.rm = T)`.
-ℹ In group 11: `ID = 11`.
-Caused by warning in `max()`:
-! no non-missing arguments to max; returning -Inf
-ℹ Run `dplyr::last_dplyr_warnings()` to see the 44 remaining warnings.</code></pre>
-</div>
-<div class="cell-output-display">
-<div class="kable-table">
-<table class="table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th style="text-align: right;">Agrace</th>
-<th style="text-align: right;">mean(Y)</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: right;">0</td>
-<td style="text-align: right;">-Inf</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">-Inf</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<p>Potential for immortal time bias: How many outcomes occur in the “exposed group” (Agrace) before they are actually exposed (i.e., when Agrace=1 and A=0)?</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>df <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Agrace<span class="sc">==</span><span class="dv">1</span> <span class="sc">&amp;</span> A<span class="sc">==</span><span class="dv">0</span> <span class="sc">&amp;</span> Y<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span> <span class="fu">summarize</span>(<span class="fu">sum</span>(Y))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output-display">
-<div class="kable-table">
-<table class="table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th style="text-align: right;">sum(Y)</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: right;">12</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-</section>
-<section id="section" class="level2">
-<h2 class="anchored" data-anchor-id="section"></h2>
 </section>
 
 </main>

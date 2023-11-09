@@ -37,7 +37,7 @@ library(tidyverse)
 set.seed(04192020)
 
 # Number of individuals
-N <- 1000
+N <- 10000
 
 # Number of time periods
 J <- 10
@@ -115,6 +115,7 @@ df.4 <- df.3 %>%
   mutate(hazard_prob =  1-plogis(3 - (2 * A) + (0.03 * time_period) + (0.3 * X) - (0.4 * W)),
          cens_prob = 1 - plogis(4 + (0.5 * A) + (0.008 * time_period) - (2 * X)))
 
+
 # Hazard of event. Once outcome occurs, all future outcomes are 9 (<- convert to NA in later step b/c otherwise variable is logical, not numeric)
 for (i in 1:nrow(df.4)) {
    
@@ -172,8 +173,7 @@ df.6 <- df.5 %>%
          end_time = pmin(event_time, cens_time, J+1),
          Y = ifelse (end_time==time_period & censor!=1, 1,
                     ifelse( end_time>time_period, 0, NA)))
-  
- 
+
 # Select relevant variables for clean dataset
 df <- df.6 %>%
   select(ID, time_period, Agrace, A, X, W, event, censor, Y)
@@ -181,35 +181,3 @@ df <- df.6 %>%
 # Export to .csv for sharing
 write_csv(df, file="CWC_example.csv")
 ```
-
-## Summarize data
-
-Summary of exposure and confounders
-
-```{r}
-df %>% filter(time_period==1) %>% summarize(mean(Agrace), mean(X), mean(W))
-
-df %>% filter(time_period==1) %>% group_by(Agrace) %>% summarize(mean(X), mean(W))
-
-```
-
-Distribution of follow up time without any censoring (event_time) and with censoring (end_time)
-
-```{r}
-df.6 %>% filter(time_period==1) %>% group_by(event_time) %>% summarize(n())
-df.6 %>% filter(time_period==1) %>% group_by(end_time) %>% summarize(n())
-```
-
-Outcome by exposure (Agrace) status (i.e., "new user" vs. "non-user" comparison)
-
-```{r}
-df %>% group_by(ID) %>% summarize(Y=max(Y, na.rm=T), Agrace=max(Agrace)) %>% group_by(Agrace) %>% summarize(mean(Y))
-```
-
-Potential for immortal time bias: How many outcomes occur in the "exposed group" (Agrace) before they are actually exposed (i.e., when Agrace=1 and A=0)?
-
-```{r}
-df %>% filter(Agrace==1 & A==0 & Y==1) %>% summarize(sum(Y))
-```
-
-## 
