@@ -7,17 +7,15 @@ format:
     page-layout: full
     df-print: kable
 editor: visual
+execute:
+  warning: false
 ---
 
 ## 
 
 ## Target estimands
 
-Our target estimand is the causal risk difference. We will also create cumulative incidence curves.
-
-## Naive analysis
-
-Does not take into account the grace period. The treatment is Agrace, meaning started at some point in the grace period.
+Our target estimand is the causal risk difference, which we can define as $Pr[Y^1=1] - Pr[Y^0=1]$, where $Y^1$ and $Y^0$ are the potential outcomes under an intervention in which everyone and no one is assigned to the treatment strategy "initiate drug within 4 days", respectively. Because our data are longitudinal, our estimand is also a function of time (to be fair, every estimand is a function of time, but here we are being explicit). Thus, we will need to specify the time frame we are evaluating and index our estimates by time, $Pr[Y^1(k)=1] - Pr[Y^0(k)=1]$ where $k=1, \ldots, T$ is the time period and there are a total of T time periods.
 
 ```{r}
 #| output: false
@@ -28,15 +26,61 @@ set.seed (04192020)
 library(tidyverse)
 library(broom)
 
-df <- read_csv("CWC_example.csv")
+df <- read_csv("CWC_example.csv", show_col_types = FALSE)
 ```
 
-## 
+## Crude risk
 
-Intention to treat (ITT)
+To begin, we will calculate the crude (unadjusted) risk overall and at each of the ten time points (i.e., the cumulative incidence at each time point). We can represent this using notation as,
+
+$$
+Pr[Y(k) = 1|A=1] - Pr[Y(k) =1 | A=0]
+$$
+
+Note that A is not indexed by k because it does not depend on the time period.
+
+To implement this we need to construct a person level data set with an indicator for treatment and an indicator for the outcome *by* each time point. We will use the outcome measure that is subject to censoring (Y) and the exposure that indicates initiation at any point during the grace period.
 
 ```{r}
 
-m1 <- glm(D ~ Agrace + W + X + time_period, data=df, family="binomial")
-tidy(m1)
+df.cruderisk <- df %>%
+  mutate(cumY= ifelse(end_time<=time_period, 1, 0 )) %>%
+  group_by(time_period, Agrace) %>%
+  summarize(Risk=mean(cumY), Noutcome=sum(cumY), denom=n()) %>%
+  arrange(desc(Agrace)) %>%
+  pivot_wider(names_from =Agrace, names_prefix = "A", values_from = c(Risk,Noutcome,denom)) %>%
+  mutate(RiskDiff=Risk_A1-Risk_A0,
+         RiskRatio=Risk_A1/Risk_A0)
+
+df.cruderisk
 ```
+
+As expected, the risk is constantly increasing since the longer we follow someone the more time they have to experience the outcome. While the risk is increasing, the risk difference and risk ratio are not necessarily increasing.
+
+```{r}
+
+ggplot(data=df.cruderisk, aes(x=time_period)) +
+  geom_point(aes(y=Risk_A1), color = "blue") +
+  geom_point(aes(y=Risk_A0), color= "red") +
+  labs(x = "Time Period", y ="Risk") +
+  ylim(0,1) + 
+  theme_bw()
+  
+```
+
+Create Kaplan Meir plot. But this is a misleading plot for several reasons. First, it doesn't account for censoring and second, it doesn't account for confounding.
+
+```{r}
+#create KM plot by summing number of events and censored people in each time period
+
+df.km <- df %>%
+  group_by(time_period) %>%
+  summarize(event=sum(Y, na.rm=T), censored=sum(censor, na.rm=T))
+
+df.km2 <- df.km %>%
+  
+```
+
+treatment weights
+
+censoring weights
