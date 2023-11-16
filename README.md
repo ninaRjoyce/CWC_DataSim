@@ -1,6 +1,6 @@
 # CWC_DataSim
 
-Files for simulating a dataset to test out methods for implementing the censor-weight-clone (CWC) approach. 
+Files for simulating a dataset to test out methods for implementing the censor-censor-weight (CCW) approach. 
 
 .qmd - code 
 
